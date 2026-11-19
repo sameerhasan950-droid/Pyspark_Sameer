@@ -1,0 +1,169 @@
+from pyspark.sql import functions as F
+
+# =====================================================
+# CREATE SAMPLE DATAFRAMES
+# =====================================================
+
+data = [
+    (1, "Rahul", 25, 50000, "IT"),
+    (2, "Priya", 28, 60000, "HR"),
+    (3, "Amit", 30, 70000, "IT"),
+    (4, "Sneha", 24, 45000, "Finance"),
+    (5, "Kiran", 35, 80000, "IT"),
+    (6, "Priya", 28, 60000, "HR"),
+    (7, "Vijay", None, None, "Sales")
+]
+
+columns = ["id", "name", "age", "salary", "department"]
+
+df = spark.createDataFrame(data, columns)
+
+dept_data = [
+    ("IT", "Bengaluru"),
+    ("HR", "Hyderabad"),
+    ("Finance", "Mumbai"),
+    ("Sales", "Chennai")
+]
+
+dept_df = spark.createDataFrame(
+    dept_data, ["department", "location"]
+)
+
+print("ORIGINAL DATAFRAME")
+df.show()
+
+# 1. SELECT: Choose specific columns
+print("1. SELECT")
+df.select("name", "salary").show()
+
+# 2. FILTER: Select employees with salary > 50000
+print("2. FILTER")
+df.filter(F.col("salary") > 50000).show()
+
+# 3. WHERE: Alternative to filter()
+print("3. WHERE")
+df.where(F.col("age") >= 28).show()
+
+# 4. WITHCOLUMN: Add a bonus column (10% salary)
+print("4. WITHCOLUMN")
+df.withColumn(
+    "bonus", F.col("salary") * 0.10
+).show()
+
+# 5. WITHCOLUMNRENAMED: Rename salary column
+print("5. WITHCOLUMNRENAMED")
+df.withColumnRenamed(
+    "salary", "monthly_salary"
+).show()
+
+# 6. DROP: Remove age column
+print("6. DROP")
+df.drop("age").show()
+
+# 7. DISTINCT: Find unique departments
+print("7. DISTINCT")
+df.select("department").distinct().show()
+
+# 8. DROPDUPLICATES: Remove duplicates by name
+print("8. DROPDUPLICATES")
+df.dropDuplicates(["name"]).show()
+
+# 9. ORDERBY: Sort by salary descending
+print("9. ORDERBY")
+df.orderBy(F.col("salary").desc()).show()
+
+# 10. SORT: Sort by age ascending
+print("10. SORT")
+df.sort(F.col("age").asc_nulls_last()).show()
+
+# 11. GROUPBY + AGG: Total salary by department
+print("11. GROUPBY + AGG")
+df.groupBy("department").agg(
+    F.sum("salary").alias("total_salary")
+).show()
+
+# 12. JOIN: Combine employees with department locations
+print("12. JOIN")
+df.join(
+    dept_df, on="department", how="inner"
+).show()
+
+# 13. UNION: Combine two DataFrames by position
+print("13. UNION")
+df1 = df.filter(F.col("id") <= 3)
+df2 = df.filter(F.col("id") > 3)
+df1.union(df2).show()
+
+# 14. UNIONBYNAME: Combine by matching column names
+print("14. UNIONBYNAME")
+df1.unionByName(df2).show()
+
+# 15. LIMIT: Return at most 3 rows
+print("15. LIMIT")
+df.limit(3).show()
+
+# 16. SAMPLE: Randomly sample approximately 50% of rows
+print("16. SAMPLE")
+df.sample(
+    withReplacement=False,
+    fraction=0.5,
+    seed=42
+).show()
+
+# 17. REPARTITION: Redistribute into 2 partitions
+print("17. REPARTITION")
+repartitioned_df = df.repartition(2)
+repartitioned_df.show()
+
+# 18. COALESCE: Reduce the number of partitions
+print("18. COALESCE")
+coalesced_df = repartitioned_df.coalesce(1)
+coalesced_df.show()
+
+# 19. INTERSECT: Find common rows
+print("19. INTERSECT")
+left_df = df.filter(F.col("id") <= 4)
+right_df = df.filter(F.col("id") >= 3)
+left_df.intersect(right_df).show()
+
+# 20. EXCEPTALL: Find rows in left not matched in right
+print("20. EXCEPTALL")
+left_df.exceptAll(right_df).show()
+
+# 21. FILLNA: Replace missing age and salary
+print("21. FILLNA")
+df.fillna({
+    "age": 0,
+    "salary": 0
+}).show()
+
+# 22. DROPNA: Remove rows with missing values
+print("22. DROPNA")
+df.dropna(
+    subset=["age", "salary"]
+).show()
+
+# 23. REPLACE: Replace department values
+print("23. REPLACE")
+df.replace(
+    {"IT": "Technology", "HR": "Human Resources"},
+    subset=["department"]
+).show()
+
+# 24. ALIAS: Give DataFrame a temporary alias
+print("24. ALIAS")
+df.alias("emp").select(
+    F.col("emp.name"),
+    F.col("emp.salary")
+).show()
+
+# 25. SELECTEXPR: Use SQL expressions
+print("25. SELECTEXPR")
+df.selectExpr(
+    "name",
+    "salary",
+    "salary * 12 AS annual_salary",
+    "age + 1 AS next_year_age"
+).show()
+
+print("ALL 25 TRANSFORMATIONS COMPLETED")
