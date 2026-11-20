@@ -1,0 +1,307 @@
+# ============================================================
+# PYSPARK ACTIONS 19–30
+# DATABRICKS COMMUNITY / FREE EDITION
+# ============================================================
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import concat_ws, col
+
+spark = SparkSession.builder.getOrCreate()
+
+# ============================================================
+# STEP 1: CREATE SAMPLE DATAFRAME
+# ============================================================
+
+data = [
+    (1, "Bharath", "IT", 90000),
+    (2, "Rahul", "HR", 50000),
+    (3, "Priya", "Finance", 70000),
+    (4, "Sneha", "IT", 85000),
+    (5, "Arjun", "Sales", 60000)
+]
+
+columns = ["id", "name", "department", "salary"]
+
+df = spark.createDataFrame(data, columns)
+
+print("ORIGINAL DATAFRAME")
+df.show()
+
+# ============================================================
+# STORAGE CONFIGURATION
+# ============================================================
+
+# Change these to your accessible catalog, schema and volume.
+catalog = "main"
+schema = "default"
+volume = "pyspark_demo"
+
+# Create a managed volume if you have permission.
+spark.sql(
+    f"CREATE VOLUME IF NOT EXISTS "
+    f"{catalog}.{schema}.{volume}"
+)
+
+base_path = f"/Volumes/{catalog}/{schema}/{volume}"
+
+# ============================================================
+# 19. toPandas()
+# Convert Spark DataFrame into Pandas DataFrame
+# ============================================================
+
+print("19. TOPANDAS")
+
+pandas_df = df.toPandas()
+
+print(pandas_df)
+print(type(pandas_df))
+
+# ============================================================
+# 20. toArrow()
+# Convert Spark DataFrame into Apache Arrow Table
+# ============================================================
+
+print("20. TOARROW")
+
+if hasattr(df, "toArrow"):
+    arrow_table = df.toArrow()
+else:
+    # Fallback for runtimes without DataFrame.toArrow()
+    import pyarrow as pa
+
+    arrow_table = pa.Table.from_pandas(
+        pandas_df,
+        preserve_index=False
+    )
+
+print(arrow_table)
+print(type(arrow_table))
+
+# ============================================================
+# 21. write.save()
+# Save DataFrame into Delta format
+# ============================================================
+
+print("21. WRITE SAVE")
+
+df.write \
+    .format("delta") \
+    .mode("overwrite") \
+    .save(f"{base_path}/employees_delta")
+
+saved_df = spark.read \
+    .format("delta") \
+    .load(f"{base_path}/employees_delta")
+
+saved_df.show()
+
+# ============================================================
+# 22. write.csv()
+# Save DataFrame as CSV files
+# ============================================================
+
+print("22. WRITE CSV")
+
+df.write \
+    .mode("overwrite") \
+    .option("header", "true") \
+    .csv(f"{base_path}/employees_csv")
+
+csv_df = spark.read \
+    .option("header", "true") \
+    .option("inferSchema", "true") \
+    .csv(f"{base_path}/employees_csv")
+
+csv_df.show()
+
+# ============================================================
+# 23. write.parquet()
+# Save DataFrame as Parquet files
+# ============================================================
+
+print("23. WRITE PARQUET")
+
+df.write \
+    .mode("overwrite") \
+    .parquet(f"{base_path}/employees_parquet")
+
+parquet_df = spark.read.parquet(
+    f"{base_path}/employees_parquet"
+)
+
+parquet_df.show()
+
+# ============================================================
+# 24. write.json()
+# Save DataFrame as JSON files
+# ============================================================
+
+print("24. WRITE JSON")
+
+df.write \
+    .mode("overwrite") \
+    .json(f"{base_path}/employees_json")
+
+json_df = spark.read.json(
+    f"{base_path}/employees_json"
+)
+
+json_df.show()
+
+# ============================================================
+# 25. write.orc()
+# Save DataFrame as ORC files
+# ============================================================
+
+print("25. WRITE ORC")
+
+df.write \
+    .mode("overwrite") \
+    .orc(f"{base_path}/employees_orc")
+
+orc_df = spark.read.orc(
+    f"{base_path}/employees_orc"
+)
+
+orc_df.show()
+
+# ============================================================
+# 26. write.text()
+# Save DataFrame as text files
+# Requires exactly one string column
+# ============================================================
+
+print("26. WRITE TEXT")
+
+text_df = df.select(
+    concat_ws(
+        ",",
+        col("id"),
+        col("name"),
+        col("department"),
+        col("salary")
+    ).alias("value")
+)
+
+text_df.write \
+    .mode("overwrite") \
+    .text(f"{base_path}/employees_text")
+
+text_result = spark.read.text(
+    f"{base_path}/employees_text"
+)
+
+text_result.show(truncate=False)
+
+# ============================================================
+# 27. write.saveAsTable()
+# Create a managed Delta table
+# ============================================================
+
+print("27. SAVE AS TABLE")
+
+table_name = f"{catalog}.{schema}.employees_demo"
+
+df.write \
+    .format("delta") \
+    .mode("overwrite") \
+    .saveAsTable(table_name)
+
+spark.table(table_name).show()
+
+# ============================================================
+# 28. write.insertInto()
+# Insert records into an existing table
+# Matches columns by position
+# ============================================================
+
+print("28. INSERT INTO")
+
+new_data = [
+    (6, "Kiran", "IT", 95000),
+    (7, "Meena", "HR", 55000)
+]
+
+new_df = spark.createDataFrame(
+    new_data,
+    columns
+)
+
+new_df.write \
+    .mode("append") \
+    .insertInto(table_name)
+
+spark.table(table_name).show()
+
+# ============================================================
+# 29. write.jdbc()
+# Write DataFrame into an external PostgreSQL database
+# Requires a real database, network access and JDBC driver
+# ============================================================
+
+print("29. WRITE JDBC")
+
+# Replace placeholders before enabling this example.
+# Store real credentials in Databricks Secrets.
+
+jdbc_url = "jdbc:postgresql://YOUR_HOST:5432/companydb"
+
+connection_properties = {
+    "user": "YOUR_USERNAME",
+    "password": "YOUR_PASSWORD",
+    "driver": "org.postgresql.Driver"
+}
+
+# Uncomment after configuring the database and JDBC driver.
+#
+# df.write.jdbc(
+#     url=jdbc_url,
+#     table="employees",
+#     mode="append",
+#     properties=connection_properties
+# )
+
+print("JDBC example skipped: configure external database first.")
+
+# ============================================================
+# 30. writeTo(...).append()
+# Append records using DataFrameWriterV2
+# Requires a compatible table provider
+# ============================================================
+
+print("30. WRITETO APPEND")
+
+v2_table = f"{catalog}.{schema}.employees_v2_demo"
+
+# Create an existing Delta table
+df.write \
+    .format("delta") \
+    .mode("overwrite") \
+    .saveAsTable(v2_table)
+
+# Append using DataFrameWriterV2
+new_df.writeTo(v2_table).append()
+
+spark.table(v2_table).show()
+
+# ============================================================
+# FINAL VERIFICATION
+# ============================================================
+
+print("ALL SAVED FILE LOCATIONS")
+
+display(dbutils.fs.ls(base_path))
+
+print("ALL TABLES")
+
+spark.sql(
+    f"SHOW TABLES IN {catalog}.{schema}"
+).show(truncate=False)
+
+print("FINAL EMPLOYEES TABLE")
+
+spark.sql(
+    f"SELECT * FROM {table_name}"
+).show()
+
+print("PYSPARK ACTIONS 19–30 COMPLETED")
