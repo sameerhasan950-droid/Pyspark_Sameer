@@ -1,0 +1,27 @@
+# 1. Basic Trigonometric Functions
+df.select(F.sin(F.radians(F.lit(30))).alias("sin")).show()       # 0.5
+df.select(F.cos(F.radians(F.lit(60))).alias("cos")).show()       # 0.5
+df.select(F.tan(F.radians(F.lit(45))).alias("tan")).show()       # 1.0
+df.select(F.cot(F.radians(F.lit(45))).alias("cot")).show()       # 1.0
+df.select((1/F.cos(F.radians(F.lit(60)))).alias("sec")).show()   # 2.0
+df.select((1/F.sin(F.radians(F.lit(30)))).alias("csc")).show()   # 2.0
+
+# 2. Inverse Trigonometric Functions
+df.select(F.asin(F.lit(0.5)).alias("asin")).show()               # 0.523599
+df.select(F.acos(F.lit(0.5)).alias("acos")).show()               # 1.047198
+df.select(F.atan(F.lit(1)).alias("atan")).show()                 # 0.785398
+df.select(F.atan2(F.lit(1), F.lit(1)).alias("atan2")).show()     # 0.785398
+
+# 3. Hyperbolic Trigonometric Functions
+df.select(F.sinh(F.lit(1)).alias("sinh")).show()                 # 1.175201
+df.select(F.cosh(F.lit(1)).alias("cosh")).show()                 # 1.543081
+df.select(F.tanh(F.lit(1)).alias("tanh")).show()                 # 0.761594
+
+# 4. Inverse Hyperbolic Functions
+df.select(F.asinh(F.lit(1)).alias("asinh")).show()               # 0.881374
+df.select(F.acosh(F.lit(2)).alias("acosh")).show()               # 1.316958
+df.select(F.atanh(F.lit(0.5)).alias("atanh")).show()             # 0.549306
+
+# 5. Angle Conversion Functions
+df.select(F.radians(F.lit(180)).alias("radians")).show()        # 3.141593
+df.select(F.degrees(F.lit(3.141592653589793)).alias("degrees")).show() # 180.0
