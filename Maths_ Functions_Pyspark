@@ -1,0 +1,19 @@
+from pyspark.sql import functions as F
+
+# Sample DataFrame
+df = spark.createDataFrame(
+    [
+        (1, 25.678, -10.5, 2.0),
+        (2, 16.345, -20.8, 3.0),
+        (3, 49.876, -30.2, 4.0)
+    ],
+    ["id", "num", "negative", "base"]
+)
+
+df.show()
+
+df.select(F.abs("negative").alias("absolute")).show()
+df.select(F.round("num", 2).alias("rounded")).show()
+df.select(F.ceil("num").alias("ceiling")).show()
+df.select(F.floor("num").alias("floor")).show()
+df.select(F.exp("base").alias("exponent")).show()
