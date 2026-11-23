@@ -1,0 +1,293 @@
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+
+spark = SparkSession.builder.getOrCreate()
+
+# ============================================================
+# CREATE SAMPLE DATAFRAME
+# ============================================================
+
+data = [
+    (1, "2026-01-15", "2026-02-20", "2026-01-15 10:30:45"),
+    (2, "2026-03-10", "2026-04-25", "2026-03-10 14:20:30"),
+    (3, "2026-06-05", "2026-07-15", "2026-06-05 09:15:10"),
+    (4, "2026-09-20", "2026-10-30", "2026-09-20 18:45:00"),
+    (5, "2026-12-01", "2026-12-31", "2026-12-01 08:00:00")
+]
+
+columns = ["id", "start_date", "end_date", "created_at"]
+
+df = spark.createDataFrame(data, columns)
+
+df = df.withColumn("start_date", F.to_date("start_date")) \
+       .withColumn("end_date", F.to_date("end_date")) \
+       .withColumn("created_at", F.to_timestamp("created_at"))
+
+df.show(truncate=False)
+
+
+# ============================================================
+# 1. current_date()
+# ============================================================
+# Explanation: Returns the current system date.
+# Output: 2026-11-23 (if executed on November 23, 2026)
+
+df.select(F.current_date().alias("today")).show()
+
+
+# ============================================================
+# 2. current_timestamp()
+# ============================================================
+# Explanation: Returns the current date and time.
+# Output Example: 2026-11-23 11:30:45
+
+df.select(
+    F.current_timestamp().alias("current_datetime")
+).show(truncate=False)
+
+
+# ============================================================
+# 3. to_date()
+# ============================================================
+# Explanation: Converts a string or timestamp into DateType.
+# Example: "2026-01-15" -> 2026-01-15
+
+df.select(
+    "start_date",
+    F.to_date("start_date").alias("converted_date")
+).show()
+
+
+# ============================================================
+# 4. to_timestamp()
+# ============================================================
+# Explanation: Converts a string into TimestampType.
+# Example: "2026-01-15 10:30:45" -> timestamp value
+
+df.select(
+    "created_at",
+    F.to_timestamp("created_at").alias("timestamp_value")
+).show(truncate=False)
+
+
+# ============================================================
+# 5. date_format()
+# ============================================================
+# Explanation: Converts a date into a formatted string.
+# yyyy = year, MM = month, dd = day
+# Example: 2026-01-15 -> 15/01/2026
+
+df.select(
+    "start_date",
+    F.date_format("start_date", "dd/MM/yyyy").alias("formatted_date")
+).show()
+
+
+# ============================================================
+# 6. year()
+# ============================================================
+# Explanation: Extracts the year from a date.
+# Example: 2026-01-15 -> 2026
+
+df.select(
+    "start_date",
+    F.year("start_date").alias("year")
+).show()
+
+
+# ============================================================
+# 7. month()
+# ============================================================
+# Explanation: Extracts the month number (1 to 12).
+# Example: 2026-03-10 -> 3
+
+df.select(
+    "start_date",
+    F.month("start_date").alias("month")
+).show()
+
+
+# ============================================================
+# 8. dayofmonth()
+# ============================================================
+# Explanation: Extracts the day of the month (1 to 31).
+# Example: 2026-01-15 -> 15
+
+df.select(
+    "start_date",
+    F.dayofmonth("start_date").alias("day")
+).show()
+
+
+# ============================================================
+# 9. dayofweek()
+# ============================================================
+# Explanation: Returns the day number of the week.
+# Sunday = 1, Monday = 2, ..., Saturday = 7
+# Example: 2026-01-15 (Thursday) -> 5
+
+df.select(
+    "start_date",
+    F.dayofweek("start_date").alias("day_of_week")
+).show()
+
+
+# ============================================================
+# 10. dayofyear()
+# ============================================================
+# Explanation: Returns the day number within the year.
+# Range: 1 to 365 (or 366 for leap years).
+# Example: 2026-01-15 -> 15
+
+df.select(
+    "start_date",
+    F.dayofyear("start_date").alias("day_of_year")
+).show()
+
+
+# ============================================================
+# 11. weekofyear()
+# ============================================================
+# Explanation: Returns the ISO week number (1 to 53).
+# Example: 2026-01-15 -> 3
+
+df.select(
+    "start_date",
+    F.weekofyear("start_date").alias("week_number")
+).show()
+
+
+# ============================================================
+# 12. quarter()
+# ============================================================
+# Explanation: Returns the quarter number (1 to 4).
+# Q1 = Jan-Mar, Q2 = Apr-Jun
+# Q3 = Jul-Sep, Q4 = Oct-Dec
+# Example: 2026-06-05 -> 2
+
+df.select(
+    "start_date",
+    F.quarter("start_date").alias("quarter")
+).show()
+
+
+# ============================================================
+# 13. date_add()
+# ============================================================
+# Explanation: Adds a specified number of days to a date.
+# Example: 2026-01-15 + 10 days -> 2026-01-25
+
+df.select(
+    "start_date",
+    F.date_add("start_date", 10).alias("after_10_days")
+).show()
+
+
+# ============================================================
+# 14. date_sub()
+# ============================================================
+# Explanation: Subtracts a specified number of days.
+# Example: 2026-01-15 - 5 days -> 2026-01-10
+
+df.select(
+    "start_date",
+    F.date_sub("start_date", 5).alias("before_5_days")
+).show()
+
+
+# ============================================================
+# 15. datediff()
+# ============================================================
+# Explanation: Calculates days between two dates.
+# Formula: end_date - start_date
+# Example: 2026-02-20 - 2026-01-15 -> 36 days
+
+df.select(
+    "start_date",
+    "end_date",
+    F.datediff("end_date", "start_date").alias("days_difference")
+).show()
+
+
+# ============================================================
+# 16. months_between()
+# ============================================================
+# Explanation: Calculates the difference in months.
+# Can return fractional months.
+# Example: Jan 15 to Feb 20 -> approximately 1.16 months
+
+df.select(
+    "start_date",
+    "end_date",
+    F.months_between("end_date", "start_date").alias("months_difference")
+).show()
+
+
+# ============================================================
+# 17. add_months()
+# ============================================================
+# Explanation: Adds months to a date.
+# Example: 2026-01-15 + 3 months -> 2026-04-15
+
+df.select(
+    "start_date",
+    F.add_months("start_date", 3).alias("after_3_months")
+).show()
+
+
+# ============================================================
+# 18. last_day()
+# ============================================================
+# Explanation: Returns the last date of the month.
+# Example: 2026-02-20 -> 2026-02-28
+
+df.select(
+    "end_date",
+    F.last_day("end_date").alias("month_last_date")
+).show()
+
+
+# ============================================================
+# 19. next_day()
+# ============================================================
+# Explanation: Returns the next occurrence of a weekday.
+# Example: 2026-01-15 (Thursday)
+# Next Monday -> 2026-01-19
+
+df.select(
+    "start_date",
+    F.next_day("start_date", "Mon").alias("next_monday")
+).show()
+
+
+# ============================================================
+# 20. trunc()
+# ============================================================
+# Explanation: Truncates a date to the beginning of a period.
+# "month" -> First day of the month
+# "year"  -> First day of the year
+# Example: 2026-09-20 -> 2026-09-01
+
+df.select(
+    "start_date",
+    F.trunc("start_date", "month").alias("month_start"),
+    F.trunc("start_date", "year").alias("year_start")
+).show()
+
+
+# ============================================================
+# BONUS: APPLY MULTIPLE DATE FUNCTIONS TOGETHER
+# ============================================================
+
+df.select(
+    "id",
+    "start_date",
+    "end_date",
+    F.year("start_date").alias("year"),
+    F.month("start_date").alias("month"),
+    F.quarter("start_date").alias("quarter"),
+    F.dayofweek("start_date").alias("weekday"),
+    F.datediff("end_date", "start_date").alias("total_days"),
+    F.add_months("start_date", 2).alias("plus_2_months"),
+    F.last_day("start_date").alias("month_end")
+).show(truncate=False)
