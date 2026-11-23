@@ -1,0 +1,75 @@
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+
+spark = SparkSession.builder.getOrCreate()
+
+data = [
+    (1, "  bharath kumar  ", "bharath@gmail.com", "Data Engineer", "Bangalore"),
+    (2, "RAHUL SHARMA", "rahul@yahoo.com", "Data Scientist", "Hyderabad"),
+    (3, "priya reddy", "priya@outlook.com", "Python Developer", "Chennai"),
+    (4, "  Amit Patel ", "amit@gmail.com", "DevOps Engineer", "Mumbai"),
+    (5, "sneha_k", "sneha@yahoo.com", "ML Engineer", "Pune")
+]
+
+columns = ["id", "name", "email", "designation", "city"]
+
+df = spark.createDataFrame(data, columns)
+
+df.show(truncate=False)df.select("name",F.upper("name").alias("upper_name")).show()
+df.select("name",F.lower("name").alias("lower_name")).show()
+df.select("name", F.initcap("name").alias("formatted_name")).show(truncate=False)
+df.select("name", F.length("name").alias("length")).show(truncate=False)
+df.select("name", F.trim("name").alias("trimmed_name")).show(truncate=False)
+df.select("name", F.rtrim("name").alias("trimmed_name")).show(truncate=False)
+df.select("name", F.ltrim("name").alias("trimmed_name")).show(truncate=False)
+df.select("name", F.substring("name", 1, 5).alias("first_five")).show(truncate=False)
+df.select(
+    "name", "city",
+    F.concat(F.trim("name"), F.lit(" - "), F.col("city")).alias("employee_details")
+).show(truncate=False)
+df.select("email", F.split("email", "@").alias("email_parts")).show(truncate=False)
+df.select(
+    "email",
+    F.instr("email", "@").alias("at_position")
+).show(truncate=False)
+df.select(
+    "designation",
+    F.locate("Engineer", "designation").alias("position")
+).show(truncate=False)
+df.select(
+    "designation",
+    F.col("designation").startswith("Data").alias("starts_with_data")
+).show(truncate=False)
+df.select(
+    "email",
+    F.col("email").endswith("gmail.com").alias("is_gmail")
+).show(truncate=False)
+
+df.select(
+    "id",
+    F.lpad(F.col("id").cast("string"), 5, "0").alias("employee_code")
+).show()
+df.select(
+    "city",
+    F.rpad("city", 12, "*").alias("padded_city")
+).show(truncate=False)
+df.select(
+    "city",
+    F.repeat("city", 2).alias("repeated_city")
+).show(truncate=False)
+df.select(
+    "city",
+    F.reverse("city").alias("reversed_city")
+).show(truncate=False)
+df.select(
+    "city",
+    F.ascii("city").alias("ascii_value")
+).show(truncate=False)
+df.select(
+    "id",
+    F.chr(F.col("id") + F.lit(64)).alias("letter")
+).show()
+df.select(
+    "city",
+    F.translate("city", "aeiou", "12345").alias("translated_city")
+).show(truncate=False)
