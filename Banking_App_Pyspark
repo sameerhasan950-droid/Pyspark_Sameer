@@ -1,0 +1,343 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
+
+spark = SparkSession.builder.appName("BankingAnalytics").getOrCreate()
+
+# Create Banking Customer DataFrame
+
+data = [
+    (101, "Ravi",    "Bangalore", 50000.0,  750, 10000, 15000),
+    (102, "Priya",   None,        75000.0,  None, None, 20000),
+    (103, "Arjun",   "Hyderabad", None,     680, 15000, 15000),
+    (104, "Sneha",   "Chennai",   90000.0,  800, 25000, None),
+    (105, "Kiran",   None,        0.0,      None, None, None),
+    (106, "Divya",   "Mumbai",    float("nan"), 720, 12000, 18000),
+    (107, "Rahul",   "Delhi",     60000.0,  710, 10000, 10000),
+    (108, "Anjali",  "Bangalore", None,     None, None, 25000),
+    (109, "Vikram",  "Chennai",   85000.0,  790, 30000, 35000),
+    (110, "Meena",   None,        45000.0,  650, 5000, None)
+]
+
+columns = [
+    "customer_id",
+    "customer_name",
+    "city",
+    "balance",
+    "credit_score",
+    "monthly_income",
+    "declared_income"
+]
+
+df = spark.createDataFrame(data, columns)
+
+df.show(truncate=False)
+
+
+# ==================================================
+# 1. ISNULL()
+# ==================================================
+
+# Checks whether the column contains NULL.
+# Returns True or False.
+
+df.withColumn("is_city_null", col("city").isNull()).show()
+
+# Retrieve customers whose city is missing
+
+df.filter(col("city").isNull()).show()
+
+# Retrieve customers whose credit score is missing
+
+df.filter(col("credit_score").isNull()).show()
+
+
+# ==================================================
+# 2. ISNOTNULL()
+# ==================================================
+
+# Checks whether a column contains a non-NULL value.
+
+df.withColumn("valid_city", col("city").isNotNull()).show()
+
+# Retrieve customers with available credit scores
+
+df.filter(col("credit_score").isNotNull()).show()
+
+# Retrieve customers with both city and credit score
+
+df.filter(
+    col("city").isNotNull() &
+    col("credit_score").isNotNull()
+).show()
+
+
+# ==================================================
+# 3. ISNAN()
+# ==================================================
+
+# NaN stands for Not a Number.
+# NaN and NULL are different in PySpark.
+
+df.withColumn("is_balance_nan", isnan("balance")).show()
+
+# Retrieve customers with NaN balance
+
+df.filter(isnan("balance")).show()
+
+# Retrieve customers with NULL or NaN balance
+
+df.filter(
+    col("balance").isNull() | isnan("balance")
+).show()
+
+
+# ==================================================
+# 4. FILLNA()
+# ==================================================
+
+# Replace NULL values with default values.
+
+# Replace missing city with Unknown
+
+df.fillna("Unknown", subset=["city"]).show()
+
+# Replace missing credit score with 0
+
+df.fillna(0, subset=["credit_score"]).show()
+
+# Replace NULL and NaN in balance with 0
+
+df.fillna(0, subset=["balance"]).show()
+
+# Replace missing values in multiple columns
+
+df.fillna({
+    "city": "Unknown",
+    "balance": 0,
+    "credit_score": 0,
+    "monthly_income": 0,
+    "declared_income": 0
+}).show()
+
+
+# ==================================================
+# 5. DROPNA()
+# ==================================================
+
+# Removes rows containing NULL or NaN values.
+
+# Remove rows if any column contains NULL or NaN
+
+df.dropna().show()
+
+# Remove rows only if all selected columns are missing
+
+df.dropna(
+    how="all",
+    subset=["monthly_income", "declared_income"]
+).show()
+
+# Remove rows if city contains NULL
+
+df.dropna(subset=["city"]).show()
+
+# Remove rows if credit score or balance is missing
+
+df.dropna(subset=["credit_score", "balance"]).show()
+
+# Keep rows having at least 6 non-missing values
+
+df.dropna(thresh=6).show()
+
+
+# ==================================================
+# 6. COALESCE()
+# ==================================================
+
+# Returns the first non-NULL value from multiple columns.
+
+# Use monthly income if available.
+# Otherwise, use declared income.
+# If both are NULL, return 0.
+
+df.withColumn(
+    "final_income",
+    coalesce(
+        col("monthly_income"),
+        col("declared_income"),
+        lit(0)
+    )
+).show()
+
+# Replace missing city using coalesce
+
+df.withColumn(
+    "final_city",
+    coalesce(col("city"), lit("Unknown"))
+).show()
+
+
+# ==================================================
+# 7. NVL()
+# ==================================================
+
+# Returns the first value if it is not NULL.
+# Otherwise, returns the second value.
+
+df.withColumn(
+    "final_credit_score",
+    nvl(col("credit_score"), lit(0))
+).show()
+
+# Replace missing city
+
+df.withColumn(
+    "final_city",
+    nvl(col("city"), lit("Not Available"))
+).show()
+
+# Replace missing monthly income with declared income
+
+df.withColumn(
+    "final_income",
+    nvl(col("monthly_income"), col("declared_income"))
+).show()
+
+
+# ==================================================
+# 8. NVL2()
+# ==================================================
+
+# Syntax: nvl2(column, value_if_not_null, value_if_null)
+
+# If credit score exists, return Available.
+# Otherwise, return Not Available.
+
+df.withColumn(
+    "credit_score_status",
+    nvl2(
+        col("credit_score"),
+        lit("Available"),
+        lit("Not Available")
+    )
+).show()
+
+# Check whether income information is available
+
+df.withColumn(
+    "income_status",
+    nvl2(
+        col("monthly_income"),
+        lit("Income Provided"),
+        lit("Income Missing")
+    )
+).show()
+
+
+# ==================================================
+# 9. NULLIF()
+# ==================================================
+
+# Returns NULL if both values are equal.
+# Otherwise, returns the first value.
+
+# Convert zero balance into NULL
+
+df.withColumn(
+    "updated_balance",
+    nullif(col("balance"), lit(0.0))
+).show()
+
+# Return NULL when monthly income and declared income
+# are equal. Otherwise, return monthly income.
+
+df.withColumn(
+    "income_check",
+    nullif(col("monthly_income"), col("declared_income"))
+).show()
+
+
+# ==================================================
+# 10. IFNULL()
+# ==================================================
+
+# Returns the first value if it is not NULL.
+# Otherwise, returns the alternative value.
+
+df.withColumn(
+    "updated_city",
+    ifnull(col("city"), lit("Unknown"))
+).show()
+
+# Replace missing credit score with 0
+
+df.withColumn(
+    "updated_credit_score",
+    ifnull(col("credit_score"), lit(0))
+).show()
+
+# Use declared income when monthly income is missing
+
+df.withColumn(
+    "updated_income",
+    ifnull(col("monthly_income"), col("declared_income"))
+).show()
+
+
+# ==================================================
+# BONUS: COUNT NULL VALUES IN EVERY COLUMN
+# ==================================================
+
+df.select([
+    count(when(col(c).isNull(), 1)).alias(c)
+    for c in df.columns
+]).show()
+
+
+# ==================================================
+# BONUS: CALCULATE NULL PERCENTAGE
+# ==================================================
+
+total_rows = df.count()
+
+df.select([
+    round(
+        count(when(col(c).isNull(), 1)) * 100.0 / total_rows,
+        2
+    ).alias(c)
+    for c in df.columns
+]).show()
+
+
+# ==================================================
+# BONUS: REPLACE NULL BALANCE WITH AVERAGE BALANCE
+# ==================================================
+
+average_balance = df.filter(
+    col("balance").isNotNull() & ~isnan("balance")
+).select(avg("balance")).first()[0]
+
+df.fillna(
+    {"balance": average_balance}
+).show()
+
+
+# ==================================================
+# BONUS: COMPLETE DATA CLEANING PIPELINE
+# ==================================================
+
+cleaned_df = df \
+    .withColumn("city", coalesce(col("city"), lit("Unknown"))) \
+    .withColumn("balance", nanvl(col("balance"), lit(None).cast("double"))) \
+    .withColumn("balance", coalesce(col("balance"), lit(average_balance))) \
+    .withColumn("final_income", coalesce(
+        col("monthly_income"),
+        col("declared_income")
+    )) \
+    .withColumn("credit_status", nvl2(
+        col("credit_score"),
+        lit("Available"),
+        lit("Missing")
+    ))
+
+cleaned_df.show(truncate=False)
