@@ -1,0 +1,191 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
+from pyspark.sql.window import Window
+
+
+# Create Retail Sales DataFrame
+
+data = [
+    (101, "Laptop",     "Electronics", "Bangalore", 75000, "2026-01-01"),
+    (102, "Mobile",     "Electronics", "Bangalore", 45000, "2026-01-02"),
+    (103, "Tablet",     "Electronics", "Bangalore", 45000, "2026-01-03"),
+    (104, "Headphones", "Electraangalore", 15000, "2026-01-04"),
+    (105, "Camera",     "Electronics", "Bangalore", 35000, "2026-01-05"),
+    (106, "Shirt",      "Clothing",    "Hyderabad",  3000, "2026-01-01"),
+    (107, "Jeans",      "Clothing",    "Hyderabad",  5000, "2026-01-02"),
+    (108, "Jacket",     "Clothing",    "Hyderabad",  8000, "2026-01-03"),
+    (109, "T-Shirt",    "Clothing",    "Hyderabad",  3000, "2026-01-04"),
+    (110, "Shoes",      "Clothing",    "Hyderabad",  6000, "2026-01-05")
+]
+
+columns = [
+    "order_id",
+    "product",
+    "category",
+    "city",
+    "sales",
+    "order_date"
+]
+
+df = spark.createDataFrame(data, columns)
+
+df = df.withColumn("order_date", to_date("order_date"))
+
+df.show(truncate=False)
+
+
+# Define Window Specifications
+
+# Category-wise sales ranking
+w1 = Window.partitionBy("category").orderBy(col("sales").desc())
+
+# Category-wise chronological ordering
+w2 = Window.partitionBy("category").orderBy("order_date", "order_id")
+
+# Deterministic ordering for row_number and ntile
+w3 = Window.partitionBy("category").orderBy(
+    col("sales").desc(), col("order_id")
+)
+
+# Complete partition window
+w4 = w2.rowsBetween(
+    Window.unboundedPreceding,
+    Window.unboundedFollowing
+)
+
+
+# ==================================================
+# 1. ROW_NUMBER()
+# ==================================================
+
+# Assign a unique sequential number to each product
+# based on sales within each category.
+
+df.withColumn("row_number", row_number().over(w3)).show()
+
+
+# ==================================================
+# 2. RANK()
+# ==================================================
+
+# Products with equal sales receive the same rank.
+# The subsequent rank will contain a gap.
+# Example: 1, 2, 3, 3, 5
+
+df.withColumn("rank", rank().over(w1)).show()
+
+
+# ==================================================
+# 3. DENSE_RANK()
+# ==================================================
+
+# Products with equal sales receive the same rank.
+# The subsequent rank will not contain a gap.
+# Example: 1, 2, 3, 3, 4
+
+df.withColumn("dense_rank", dense_rank().over(w1)).show()
+
+
+# ==================================================
+# 4. PERCENT_RANK()
+# ==================================================
+
+# Calculates the relative rank between 0 and 1.
+# Formula: (rank - 1) / (total_rows - 1)
+# Highest sales receives 0 with descending ordering.
+
+df.withColumn("percent_rank", percent_rank().over(w1)).show()
+
+
+# ==================================================
+# 5. CUME_DIST()
+# ==================================================
+
+# Calculates the cumulative proportion of rows
+# up to and including the current row and its ties.
+
+df.withColumn("cumulative_distribution", cume_dist().over(w1)).show()
+
+
+# ==================================================
+# 6. NTILE()
+# ==================================================
+
+# Divides products into 3 sales performance groups.
+# Group 1: Higher sales
+# Group 2: Medium sales
+# Group 3: Lower sales
+
+df.withColumn("sales_group", ntile(3).over(w3)).show()
+
+
+# ==================================================
+# 7. LAG()
+# ==================================================
+
+# Retrieves the previous day's sales within a category.
+# Useful for comparing current and previous sales.
+
+df.withColumn("previous_sales", lag("sales", 1).over(w2)).show()
+
+# Calculate sales difference
+
+df.withColumn("previous_sales", lag("sales", 1).over(w2)) \
+  .withColumn("sales_difference", col("sales") - col("previous_sales")) \
+  .show()
+
+
+# ==================================================
+# 8. LEAD()
+# ==================================================
+
+# Retrieves the next day's sales within a category.
+# Useful for comparing consecutive sales records.
+
+df.withColumn("next_sales", lead("sales", 1).over(w2)).show()
+
+# Calculate next sales difference
+
+df.withColumn("next_sales", lead("sales", 1).over(w2)) \
+  .withColumn("sales_difference", col("next_sales") - col("sales")) \
+  .show()
+
+
+# ==================================================
+# 9. FIRST_VALUE()
+# ==================================================
+
+# Retrieves the first recorded sales value
+# within each product category.
+
+df.withColumn("first_sales", first_value("sales").over(w4)).show()
+
+
+# ==================================================
+# 10. LAST_VALUE()
+# ==================================================
+
+# Retrieves the last recorded sales value
+# within each product category.
+# The complete window frame is important here.
+
+df.withColumn("last_sales", last_value("sales").over(w4)).show()
+
+
+# ==================================================
+# Apply All 10 Analytical Functions Together
+# ==================================================
+
+result = df \
+    .withColumn("row_number", row_number().over(w3)) \
+    .withColumn("rank", rank().over(w1)) \
+    .withColumn("dense_rank", dense_rank().over(w1)) \
+    .withColumn("percent_rank", percent_rank().over(w1)) \
+    .withColumn("cume_dist", cume_dist().over(w1)) \
+    .withColumn("ntile", ntile(3).over(w3)) \
+    .withColumn("previous_sales", lag("sales", 1).over(w2)) \
+    .withColumn("next_sales", lead("sales", 1).over(w2)) \
+    .withColumn("first_sales", first_value("sales").over(w4)) \
+    .withColumn("last_sales", last_value("sales").over(w4))
+
+result.orderBy("category", col("sales").desc(), "order_id").show(truncate=False)
