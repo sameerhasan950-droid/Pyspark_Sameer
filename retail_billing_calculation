@@ -1,0 +1,25 @@
+Scenario: Retail Order Discount and Final Billing Calculation
+
+A retail company wants to automate its billing process using PySpark. Students must create a Python UDF that calculates the final payable amount based on product category, purchase amount, quantity, and customer membership.
+Input DataFrame
+Order ID	Customer	Category	Unit Price (₹)	Quantity	Membership
+101	Ravi	Electronics	25,000	2	Gold
+102	Priya	Fashion	3,000	5	Silver
+103	Arun	Groceries	1,500	10	Regular
+104	Sneha	Electronics	60,000	1	Platinum
+105	Kiran	Furniture	15,000	3	Gold
+106	Meena	Fashion	2,500	4	Regular
+
+Business requirements
+Students must create a function named calculate_final_bill() implementing the following rules.
+Condition	Discount
+Electronics	10%
+Fashion	15%
+Groceries	5%
+Furniture	8%
+Gold membership	Additional 5%
+Silver membership	Additional 3%
+Platinum membership	Additional 10%
+Regular membership	No additional discount
+
+Calculation rules: First calculate unit_price × quantity. Apply the category discount, then apply the membership discount to the remaining amount. Return the final payable amount rounded to two decimal places.
