@@ -1,0 +1,651 @@
+# Import PySpark SQL functions
+from pyspark.sql.functions import *
+
+
+# =====================================================
+# 1. CREATE SAMPLE DATAFRAME
+# =====================================================
+
+# Create sample employee records
+data = [
+    (101, "Ravi", "IT", 50000),
+    (102, "Priya", "HR", 45000),
+    (103, "Arjun", "IT", 60000),
+    (104, "Sneha", "Finance", 55000),
+    (105, "Kiran", "Sales", 40000)
+]
+
+# Define column names
+columns = ["emp_id", "emp_name", "department", "salary"]
+
+# Convert Python records into a PySpark DataFrame
+df = spark.createDataFrame(data, columns)
+
+# Display the original DataFrame
+display(df)
+
+
+# =====================================================
+# 2. DEFINE AVRO FILE PATH
+# =====================================================
+
+# Create a Unity Catalog Volume if it does not exist
+spark.sql("CREATE VOLUME IF NOT EXISTS workspace.default.training")
+
+# Define the Avro dataset storage location
+path = "/Volumes/workspace/default/training/employees_avro"
+
+# Define temporary storage for update and delete operations
+temp_path = path + "_temp"
+
+
+# =====================================================
+# 3. WRITE DATAFRAME INTO AVRO FILE
+# =====================================================
+
+# Access DataFrameWriter using df.write
+# format("avro") specifies the output file format
+# mode("overwrite") replaces existing files
+# save() writes the data into the specified location
+
+df.write \
+    .format("avro") \
+    .mode("overwrite") \
+    .save(path)
+
+# Print confirmation
+print("Avro file created successfully")
+
+
+# =====================================================
+# 4. VIEW PHYSICAL AVRO FILES
+# =====================================================
+
+# List all physical files inside the Avro directory
+display(dbutils.fs.ls(path))
+
+
+# =====================================================
+# 5. READ AVRO FILE
+# =====================================================
+
+# Access DataFrameReader using spark.read
+# Specify Avro as the input file format
+# load() reads the files from the specified location
+
+df_read = spark.read \
+    .format("avro") \
+    .load(path)
+
+# Display the Avro records
+display(df_read)
+
+
+# =====================================================
+# 6. DISPLAY AVRO SCHEMA
+# =====================================================
+
+# Display column names, data types and nullability
+# Avro files contain embedded writer schema information
+
+df_read.printSchema()
+
+
+# =====================================================
+# 7. READ SELECTED COLUMNS
+# =====================================================
+
+# Select only the required columns
+# Avro is a row-oriented file format
+
+display(
+    df_read.select("emp_id", "emp_name", "salary")
+)
+
+
+# =====================================================
+# 8. READ DATA WITH FILTER CONDITION
+# =====================================================
+
+# Filter employees whose salary is greater than 50000
+# col() references a DataFrame column
+
+display(
+    df_read.filter(col("salary") > 50000)
+)
+
+# Display the logical and physical execution plans
+df_read.filter(col("salary") > 50000).explain(True)
+
+
+# =====================================================
+# 9. INSERT NEW RECORDS INTO AVRO FILE
+# =====================================================
+
+# Create additional employee records
+new_data = [
+    (106, "Rahul", "IT", 65000),
+    (107, "Divya", "HR", 48000)
+]
+
+# Convert the new records into a DataFrame
+new_df = spark.createDataFrame(new_data, columns)
+
+# Append new records to the existing Avro dataset
+# Append mode creates additional data files
+# Existing files are not overwritten
+
+new_df.write \
+    .format("avro") \
+    .mode("append") \
+    .save(path)
+
+# Print confirmation
+print("After inserting new records")
+
+# Read and display all employee records
+display(
+    spark.read.format("avro")
+    .load(path)
+    .orderBy("emp_id")
+)
+
+
+# =====================================================
+# 10. UPDATE SINGLE RECORD
+# Update Ravi's salary to 75000
+# =====================================================
+
+# Read the existing Avro dataset
+df_read = spark.read.format("avro").load(path)
+
+# Update the salary column using withColumn()
+df_updated = df_read.withColumn(
+
+    # Specify the column to update
+    "salary",
+
+    # Assign 75000 when employee ID is 101
+    when(col("emp_id") == 101, 75000)
+
+    # Retain existing salaries for other employees
+    .otherwise(col("salary"))
+)
+
+# Write modified records into temporary Avro storage
+df_updated.write \
+    .format("avro") \
+    .mode("overwrite") \
+    .save(temp_path)
+
+# Read temporary files and replace original Avro files
+spark.read.format("avro").load(temp_path) \
+    .write.format("avro") \
+    .mode("overwrite") \
+    .save(path)
+
+# Recursively delete temporary files
+dbutils.fs.rm(temp_path, True)
+
+# Print confirmation
+print("After updating Ravi's salary")
+
+# Display updated employee records
+display(
+    spark.read.format("avro")
+    .load(path)
+    .orderBy("emp_id")
+)
+
+
+# =====================================================
+# 11. UPDATE MULTIPLE RECORDS
+# Increase IT department salaries by 10%
+# =====================================================
+
+# Read the latest Avro dataset
+df_read = spark.read.format("avro").load(path)
+
+# Replace the salary column
+df_updated = df_read.withColumn(
+
+    # Specify the target column
+    "salary",
+
+    # Apply conditional logic
+    when(
+
+        # Check whether the employee belongs to IT
+        col("department") == "IT",
+
+        # Increase salary by 10%
+        # Round the result and convert it into long type
+        round(col("salary") * 1.10).cast("long")
+
+    # Retain existing salaries for other departments
+    ).otherwise(col("salary"))
+)
+
+# Write updated data into temporary storage
+df_updated.write \
+    .format("avro") \
+    .mode("overwrite") \
+    .save(temp_path)
+
+# Replace the original Avro dataset
+spark.read.format("avro").load(temp_path) \
+    .write.format("avro") \
+    .mode("overwrite") \
+    .save(path)
+
+# Delete temporary files
+dbutils.fs.rm(temp_path, True)
+
+# Print confirmation
+print("After increasing IT department salaries")
+
+# Display updated records
+display(
+    spark.read.format("avro")
+    .load(path)
+    .orderBy("emp_id")
+)
+
+
+# =====================================================
+# 12. UPDATE MULTIPLE COLUMNS
+# Change Rahul's department and salary
+# =====================================================
+
+# Read the existing Avro dataset
+df_read = spark.read.format("avro").load(path)
+
+# Update the department column
+df_updated = df_read.withColumn(
+
+    # Specify the department column
+    "department",
+
+    # Change Rahul's department to Finance
+    when(col("emp_id") == 106, "Finance")
+
+    # Retain other employee departments
+    .otherwise(col("department"))
+
+# Chain another withColumn() transformation
+).withColumn(
+
+    # Specify the salary column
+    "salary",
+
+    # Change Rahul's salary to 85000
+    when(col("emp_id") == 106, 85000)
+
+    # Retain salaries for other employees
+    .otherwise(col("salary"))
+)
+
+# Write modified records into temporary storage
+df_updated.write \
+    .format("avro") \
+    .mode("overwrite") \
+    .save(temp_path)
+
+# Replace the original Avro dataset
+spark.read.format("avro").load(temp_path) \
+    .write.format("avro") \
+    .mode("overwrite") \
+    .save(path)
+
+# Delete temporary files
+dbutils.fs.rm(temp_path, True)
+
+# Print confirmation
+print("After updating multiple columns")
+
+# Display updated records
+display(
+    spark.read.format("avro")
+    .load(path)
+    .orderBy("emp_id")
+)
+
+
+# =====================================================
+# 13. DELETE SINGLE RECORD
+# Delete employee ID 105
+# =====================================================
+
+# Read the existing Avro dataset
+df_read = spark.read.format("avro").load(path)
+
+# Retain all employees except employee 105
+# The filter transformation excludes the specified record
+
+df_deleted = df_read.filter(
+    col("emp_id") != 105
+)
+
+# Write remaining records into temporary storage
+df_deleted.write \
+    .format("avro") \
+    .mode("overwrite") \
+    .save(temp_path)
+
+# Replace the original Avro dataset
+spark.read.format("avro").load(temp_path) \
+    .write.format("avro") \
+    .mode("overwrite") \
+    .save(path)
+
+# Delete temporary files
+dbutils.fs.rm(temp_path, True)
+
+# Print confirmation
+print("After deleting employee 105")
+
+# Display remaining employees
+display(
+    spark.read.format("avro")
+    .load(path)
+    .orderBy("emp_id")
+)
+
+
+# =====================================================
+# 14. DELETE MULTIPLE RECORDS
+# Delete all HR department employees
+# =====================================================
+
+# Read the latest Avro dataset
+df_read = spark.read.format("avro").load(path)
+
+# Retain employees who do not belong to HR
+df_deleted = df_read.filter(
+    col("department") != "HR"
+)
+
+# Write remaining records into temporary storage
+df_deleted.write \
+    .format("avro") \
+    .mode("overwrite") \
+    .save(temp_path)
+
+# Replace the original Avro dataset
+spark.read.format("avro").load(temp_path) \
+    .write.format("avro") \
+    .mode("overwrite") \
+    .save(path)
+
+# Delete temporary files
+dbutils.fs.rm(temp_path, True)
+
+# Print confirmation
+print("After deleting HR department employees")
+
+# Display remaining employee records
+display(
+    spark.read.format("avro")
+    .load(path)
+    .orderBy("emp_id")
+)
+
+
+# =====================================================
+# 15. ADD NEW COLUMN
+# Calculate annual salary
+# =====================================================
+
+# Read the existing Avro dataset
+df_read = spark.read.format("avro").load(path)
+
+# Create a new column called annual_salary
+df_updated = df_read.withColumn(
+
+    # Specify the new column name
+    "annual_salary",
+
+    # Multiply monthly salary by 12
+    col("salary") * 12
+)
+
+# Write the DataFrame with the modified schema
+df_updated.write \
+    .format("avro") \
+    .mode("overwrite") \
+    .save(temp_path)
+
+# Replace the original Avro dataset
+spark.read.format("avro").load(temp_path) \
+    .write.format("avro") \
+    .mode("overwrite") \
+    .save(path)
+
+# Delete temporary files
+dbutils.fs.rm(temp_path, True)
+
+# Print confirmation
+print("After adding annual salary column")
+
+# Display records with the new column
+display(
+    spark.read.format("avro").load(path)
+)
+
+
+# =====================================================
+# 16. DROP A COLUMN
+# =====================================================
+
+# Read the existing Avro dataset
+df_read = spark.read.format("avro").load(path)
+
+# Remove annual_salary from the DataFrame
+df_updated = df_read.drop("annual_salary")
+
+# Write the modified DataFrame into temporary storage
+df_updated.write \
+    .format("avro") \
+    .mode("overwrite") \
+    .save(temp_path)
+
+# Replace the original Avro dataset
+spark.read.format("avro").load(temp_path) \
+    .write.format("avro") \
+    .mode("overwrite") \
+    .save(path)
+
+# Delete temporary files
+dbutils.fs.rm(temp_path, True)
+
+# Print confirmation
+print("After dropping annual salary column")
+
+# Display the modified dataset
+display(
+    spark.read.format("avro").load(path)
+)
+
+
+# =====================================================
+# 17. WRITE AVRO WITH SNAPPY COMPRESSION
+# =====================================================
+
+# Read the latest Avro dataset
+df_read = spark.read.format("avro").load(path)
+
+# Write Avro files using Snappy compression
+# Snappy prioritizes compression and decompression speed
+
+df_read.write \
+    .format("avro") \
+    .mode("overwrite") \
+    .option("compression", "snappy") \
+    .save(path + "_snappy")
+
+# Display physical compressed files
+display(dbutils.fs.ls(path + "_snappy"))
+
+
+# =====================================================
+# 18. WRITE AVRO WITH DEFLATE COMPRESSION
+# =====================================================
+
+# Write Avro files using Deflate compression
+# Deflate generally provides a higher compression ratio
+# Deflate may require more CPU resources than Snappy
+
+df_read.write \
+    .format("avro") \
+    .mode("overwrite") \
+    .option("compression", "deflate") \
+    .save(path + "_deflate")
+
+# Display physical compressed files
+display(dbutils.fs.ls(path + "_deflate"))
+
+
+# =====================================================
+# 19. WRITE PARTITIONED AVRO FILE
+# =====================================================
+
+# Write Avro files partitioned by department
+# partitionBy() creates separate directories
+# for each distinct department value
+
+df_read.write \
+    .format("avro") \
+    .mode("overwrite") \
+    .partitionBy("department") \
+    .save(path + "_partitioned")
+
+# Expected directory structure:
+#
+# employees_avro_partitioned/
+#     department=IT/
+#         part-00000.avro
+#     department=Finance/
+#         part-00001.avro
+
+# Display partition directories
+display(dbutils.fs.ls(path + "_partitioned"))
+
+
+# =====================================================
+# 20. READ PARTITIONED AVRO FILE
+# =====================================================
+
+# Read the partitioned Avro dataset
+# Spark automatically discovers partition directories
+
+df_partitioned = spark.read \
+    .format("avro") \
+    .load(path + "_partitioned")
+
+# Display all partitioned records
+display(df_partitioned)
+
+# Filter employees belonging to the IT department
+# Spark can skip unrelated partition directories
+# This optimization is called partition pruning
+
+display(
+    df_partitioned.filter(col("department") == "IT")
+)
+
+# Display execution plan to inspect partition filters
+df_partitioned.filter(
+    col("department") == "IT"
+).explain(True)
+
+
+# =====================================================
+# 21. COMPARE COMPRESSED FILE SIZES
+# =====================================================
+
+# Initialize a variable to store Snappy file size
+snappy_size = 0
+
+# Iterate through all files in the Snappy directory
+for file in dbutils.fs.ls(path + "_snappy"):
+
+    # Consider only physical Avro data files
+    if file.name.endswith(".avro"):
+
+        # Add the current file size in bytes
+        snappy_size += file.size
+
+
+# Initialize a variable to store Deflate file size
+deflate_size = 0
+
+# Iterate through all files in the Deflate directory
+for file in dbutils.fs.ls(path + "_deflate"):
+
+    # Consider only physical Avro data files
+    if file.name.endswith(".avro"):
+
+        # Add the current file size in bytes
+        deflate_size += file.size
+
+
+# Display Snappy compressed file size
+print("Snappy file size:", snappy_size, "bytes")
+
+# Display Deflate compressed file size
+print("Deflate file size:", deflate_size, "bytes")
+
+# Compare both compressed file sizes
+if snappy_size > deflate_size:
+
+    # Execute when Deflate occupies less storage
+    print("Deflate occupies less storage")
+
+elif snappy_size < deflate_size:
+
+    # Execute when Snappy occupies less storage
+    print("Snappy occupies less storage")
+
+else:
+
+    # Execute when both file sizes are equal
+    print("Both occupy the same storage")
+
+
+# =====================================================
+# 22. FINAL AVRO DATA
+# =====================================================
+
+# Read the final Avro dataset
+final_df = spark.read.format("avro").load(path)
+
+# Sort employee records by employee ID
+# Display the final DataFrame
+display(final_df.orderBy("emp_id"))
+
+# Count the total number of employee records
+print("Total Records:", final_df.count())
+
+# Display the final schema
+final_df.printSchema()
+
+
+# =====================================================
+# 23. DELETE ENTIRE AVRO DATASET
+# Uncomment only when cleanup is required
+# =====================================================
+
+# Delete the original Avro dataset recursively
+# dbutils.fs.rm(path, True)
+
+# Delete Snappy compressed dataset
+# dbutils.fs.rm(path + "_snappy", True)
+
+# Delete Deflate compressed dataset
+# dbutils.fs.rm(path + "_deflate", True)
+
+# Delete partitioned Avro dataset
+# dbutils.fs.rm(path + "_partitioned", True)
+
+# Delete temporary dataset if it exists
+# dbutils.fs.rm(temp_path, True)
