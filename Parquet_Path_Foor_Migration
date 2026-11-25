@@ -1,0 +1,371 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
+
+# =====================================================
+# 1. CREATE SAMPLE DATAFRAME
+# =====================================================
+
+data = [
+    (101, "Ravi", "IT", 50000),
+    (102, "Priya", "HR", 45000),
+    (103, "Arjun", "IT", 60000),
+    (104, "Sneha", "Finance", 55000),
+    (105, "Kiran", "Sales", 40000)
+]
+
+columns = ["emp_id", "emp_name", "department", "salary"]
+
+df = spark.createDataFrame(data, columns)
+
+print("Original DataFrame")
+display(df)
+
+
+# =====================================================
+# 2. DEFINE PARQUET FILE PATH
+# =====================================================
+
+# Databricks Free Edition - DBFS root is disabled, use a UC volume
+spark.sql("CREATE VOLUME IF NOT EXISTS workspace.default.training")
+path = "/Volumes/workspace/default/training/employees_parquet"
+
+temp_path = path + "_temp"
+
+
+# =====================================================
+# 3. WRITE DATAFRAME INTO PARQUET FILE
+# =====================================================
+
+df.write.mode("overwrite").parquet(path)
+
+print("Parquet file created successfully")
+
+
+# =====================================================
+# 4. VIEW PHYSICAL PARQUET FILES
+# =====================================================
+
+display(dbutils.fs.ls(path))
+
+
+# =====================================================
+# 5. READ PARQUET FILE
+# =====================================================
+
+df_read = spark.read.parquet(path)
+
+print("Reading Parquet data")
+display(df_read)
+
+
+# =====================================================
+# 6. DISPLAY PARQUET SCHEMA
+# =====================================================
+
+df_read.printSchema()
+
+
+# =====================================================
+# 7. READ SELECTED COLUMNS
+# =====================================================
+
+display(
+    df_read.select("emp_id", "emp_name", "salary")
+)
+
+
+# =====================================================
+# 8. READ DATA WITH FILTER CONDITION
+# =====================================================
+
+display(
+    df_read.filter(col("salary") > 50000)
+)
+
+
+# =====================================================
+# 9. INSERT NEW RECORDS INTO PARQUET FILE
+# =====================================================
+
+new_data = [
+    (106, "Rahul", "IT", 65000),
+    (107, "Divya", "HR", 48000)
+]
+
+new_df = spark.createDataFrame(new_data, columns)
+
+new_df.write.mode("append").parquet(path)
+
+print("After inserting new records")
+
+display(
+    spark.read.parquet(path).orderBy("emp_id")
+)
+
+
+# =====================================================
+# 10. UPDATE SINGLE RECORD
+# Update Ravi's salary to 75000
+# =====================================================
+
+df_read = spark.read.parquet(path)
+
+df_updated = df_read.withColumn(
+    "salary",
+    when(col("emp_id") == 101, 75000)
+    .otherwise(col("salary"))
+)
+
+# Write updated data into temporary location
+
+df_updated.write.mode("overwrite").parquet(temp_path)
+
+# Replace original Parquet data
+
+spark.read.parquet(temp_path) \
+    .write.mode("overwrite").parquet(path)
+
+# Delete temporary location
+
+dbutils.fs.rm(temp_path, True)
+
+print("After updating Ravi's salary")
+
+display(
+    spark.read.parquet(path).orderBy("emp_id")
+)
+
+
+# =====================================================
+# 11. UPDATE MULTIPLE RECORDS
+# Increase IT department salaries by 10%
+# =====================================================
+
+df_read = spark.read.parquet(path)
+
+df_updated = df_read.withColumn(
+    "salary",
+    when(
+        col("department") == "IT",
+        (col("salary") * 1.10).cast("long")
+    ).otherwise(col("salary"))
+)
+
+df_updated.write.mode("overwrite").parquet(temp_path)
+
+spark.read.parquet(temp_path) \
+    .write.mode("overwrite").parquet(path)
+
+dbutils.fs.rm(temp_path, True)
+
+print("After increasing IT department salaries")
+
+display(
+    spark.read.parquet(path).orderBy("emp_id")
+)
+
+
+# =====================================================
+# 12. UPDATE MULTIPLE COLUMNS
+# Change Rahul's department and salary
+# =====================================================
+
+df_read = spark.read.parquet(path)
+
+df_updated = df_read.withColumn(
+    "department",
+    when(col("emp_id") == 106, "Finance")
+    .otherwise(col("department"))
+).withColumn(
+    "salary",
+    when(col("emp_id") == 106, 85000)
+    .otherwise(col("salary"))
+)
+
+df_updated.write.mode("overwrite").parquet(temp_path)
+
+spark.read.parquet(temp_path) \
+    .write.mode("overwrite").parquet(path)
+
+dbutils.fs.rm(temp_path, True)
+
+print("After updating multiple columns")
+
+display(
+    spark.read.parquet(path).orderBy("emp_id")
+)
+
+
+# =====================================================
+# 13. DELETE SINGLE RECORD
+# Delete employee ID 105
+# =====================================================
+
+df_read = spark.read.parquet(path)
+
+df_deleted = df_read.filter(
+    col("emp_id") != 105
+)
+
+df_deleted.write.mode("overwrite").parquet(temp_path)
+
+spark.read.parquet(temp_path) \
+    .write.mode("overwrite").parquet(path)
+
+dbutils.fs.rm(temp_path, True)
+
+print("After deleting employee 105")
+
+display(
+    spark.read.parquet(path).orderBy("emp_id")
+)
+
+
+# =====================================================
+# 14. DELETE MULTIPLE RECORDS
+# Delete all HR department employees
+# =====================================================
+
+df_read = spark.read.parquet(path)
+
+df_deleted = df_read.filter(
+    col("department") != "HR"
+)
+
+df_deleted.write.mode("overwrite").parquet(temp_path)
+
+spark.read.parquet(temp_path) \
+    .write.mode("overwrite").parquet(path)
+
+dbutils.fs.rm(temp_path, True)
+
+print("After deleting HR department employees")
+
+display(
+    spark.read.parquet(path).orderBy("emp_id")
+)
+
+
+# =====================================================
+# 15. ADD NEW COLUMN
+# Calculate annual salary
+# =====================================================
+
+df_read = spark.read.parquet(path)
+
+df_updated = df_read.withColumn(
+    "annual_salary",
+    col("salary") * 12
+)
+
+df_updated.write.mode("overwrite").parquet(temp_path)
+
+spark.read.parquet(temp_path) \
+    .write.mode("overwrite").parquet(path)
+
+dbutils.fs.rm(temp_path, True)
+
+print("After adding annual salary column")
+
+display(spark.read.parquet(path))
+
+
+# =====================================================
+# 16. DROP A COLUMN
+# =====================================================
+
+df_read = spark.read.parquet(path)
+
+df_updated = df_read.drop("annual_salary")
+
+df_updated.write.mode("overwrite").parquet(temp_path)
+
+spark.read.parquet(temp_path) \
+    .write.mode("overwrite").parquet(path)
+
+dbutils.fs.rm(temp_path, True)
+
+print("After dropping annual salary column")
+
+display(spark.read.parquet(path))
+
+
+# =====================================================
+# 17. WRITE PARQUET WITH SNAPPY COMPRESSION
+# =====================================================
+
+df_read = spark.read.parquet(path)
+
+df_read.write \
+    .mode("overwrite") \
+    .option("compression", "snappy") \
+    .parquet(path + "_snappy")
+
+
+# =====================================================
+# 18. WRITE PARQUET WITH GZIP COMPRESSION
+# =====================================================
+
+df_read.write \
+    .mode("overwrite") \
+    .option("compression", "gzip") \
+    .parquet(path + "_gzip")
+
+
+# =====================================================
+# 19. WRITE PARTITIONED PARQUET FILE
+# =====================================================
+
+df_read.write \
+    .mode("overwrite") \
+    .partitionBy("department") \
+    .parquet(path + "_partitioned")
+
+display(dbutils.fs.ls(path + "_partitioned"))
+
+
+# =====================================================
+# 20. READ PARTITIONED PARQUET FILE
+# =====================================================
+
+df_partitioned = spark.read.parquet(path + "_partitioned")
+
+display(df_partitioned)
+
+
+# =====================================================
+# 21. COMPARE COMPRESSED FILE SIZES
+# =====================================================
+
+snappy_size = 0
+for file in dbutils.fs.ls(path + "_snappy"):
+    snappy_size += file.size
+
+gzip_size = 0
+for file in dbutils.fs.ls(path + "_gzip"):
+    gzip_size += file.size
+
+print("Snappy file size:", snappy_size, "bytes")
+print("Gzip file size:", gzip_size, "bytes")
+
+
+# =====================================================
+# 22. FINAL PARQUET DATA
+# =====================================================
+
+final_df = spark.read.parquet(path)
+
+display(final_df.orderBy("emp_id"))
+
+print("Total Records:", final_df.count())
+
+
+# =====================================================
+# 23. DELETE ENTIRE PARQUET DATASET
+# Uncomment only when you want to delete the files
+# =====================================================
+
+# dbutils.fs.rm(path, True)
+# dbutils.fs.rm(path + "_snappy", True)
+# dbutils.fs.rm(path + "_gzip", True)
+# dbutils.fs.rm(path + "_partitioned", True)
